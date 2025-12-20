@@ -13,7 +13,9 @@ class TaskController extends Controller
      */
     public function index(Request $request)
     {
-//        \Log::info('Index called for user: ' . $request->user()->id);
+        \Log::info('All request params: ', $request->all());
+        \Log::info('Has search params: ' . ($request->has('search') ? 'true' : 'false'));
+        \Log::info('Search value: ' . $request->search);
 
         $query = $request->user()->tasks();
 
@@ -36,10 +38,13 @@ class TaskController extends Controller
         // Filter by title & description
         if ($request->has('search')) {
             $search = $request->search;
-            \Log::info('searching for ' . $search);
-            $query->where('title', 'LIKE', '%{$search}%');
-//                ->orWhere('description', 'LIKE', '%{$search}%');
-            \Log::info('Query after search: ' . $query->toSql());
+            \Log::info('Searching for: ' . $search);
+            $query->where(function($q) use ($search) {
+                $q->where('title', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
+            });
+            \Log::info('Full SQL: ' . $query->toSql());
+            \Log::info('Bindings: ', $query->getBindings());
         }
 
         $tasks = $query->latest()->paginate(10);
