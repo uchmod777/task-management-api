@@ -13,13 +13,23 @@ class TaskController extends Controller
      */
     public function index(Request $request)
     {
-        \Log::info('All request params: ', $request->all());
-        \Log::info('Has search params: ' . ($request->has('search') ? 'true' : 'false'));
-        \Log::info('Search value: ' . $request->search);
+        \Log::info('Request params: ', $request->all());
+
+        $validated = $request->validate([
+            'status' => 'nullable|in:pending,in-progress,completed',
+            'due_after' => 'nullable|date',
+            'due_before' => 'nullable|date|after_or_equal:due_after',
+            'search' => 'nullable|string|max:255',
+            'sort' => 'nullable|in:due_date,created_at,status,title',
+            'order' => 'nullable|in:asc,desc',
+        ], [
+            'status.in' => 'Status must be: pending, in-progress, or completed',
+            'due_before.after_or_equal' => 'End date must be after or equal to start date',
+        ]);
+
+        \Log::info('Validation passed');
 
         $query = $request->user()->tasks();
-
-        /*\Log::info('Query:' . $query->toSql());*/
 
         // Filter by status
         if ($request->has('status')) {
@@ -38,14 +48,16 @@ class TaskController extends Controller
         // Filter by title & description
         if ($request->has('search')) {
             $search = $request->search;
-            \Log::info('Searching for: ' . $search);
             $query->where(function($q) use ($search) {
                 $q->where('title', 'like', "%{$search}%")
                     ->orWhere('description', 'like', "%{$search}%");
             });
-            \Log::info('Full SQL: ' . $query->toSql());
-            \Log::info('Bindings: ', $query->getBindings());
         }
+
+        $sortField = $request->input("sort", "created_at");
+        $sortOrder = $request->input("order", "desc");
+
+        $query->orderBy($sortField, $sortOrder);
 
         $tasks = $query->latest()->paginate(10);
 
