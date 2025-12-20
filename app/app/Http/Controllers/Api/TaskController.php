@@ -13,9 +13,38 @@ class TaskController extends Controller
      */
     public function index(Request $request)
     {
-        $tasks = $request->user()->tasks()->latest()->paginate(10);
+//        \Log::info('Index called for user: ' . $request->user()->id);
 
-        return response()->json($tasks);
+        $query = $request->user()->tasks();
+
+        /*\Log::info('Query:' . $query->toSql());*/
+
+        // Filter by status
+        if ($request->has('status')) {
+            $query->where('status', $request->status);
+        }
+
+        // Filter by date
+        if ($request->has('due_after')) {
+            $query->whereDate("due_date", ">=", $request->due_after);
+        }
+
+        if ($request->has('due_before')) {
+            $query->whereDate("due_date", "<=", $request->due_after);
+        }
+
+        // Filter by title & description
+        if ($request->has('search')) {
+            $search = $request->search;
+            \Log::info('searching for ' . $search);
+            $query->where('title', 'LIKE', '%{$search}%');
+//                ->orWhere('description', 'LIKE', '%{$search}%');
+            \Log::info('Query after search: ' . $query->toSql());
+        }
+
+        $tasks = $query->latest()->paginate(10);
+
+        return response()->json($tasks, 200);
     }
 
     /**
