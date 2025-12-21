@@ -29,7 +29,10 @@ class TaskController extends Controller
 
         \Log::info('Validation passed');
 
-        $query = $request->user()->tasks();
+        $userId = $request->user()->id;
+        $query = Task::where(function ($q) use ($userId) {
+            $q->where('user_id', $userId)->orWhere('assigned_to', $userId);
+        });
 
         // Filter by status
         if ($request->has('status')) {
@@ -42,7 +45,7 @@ class TaskController extends Controller
         }
 
         if ($request->has('due_before')) {
-            $query->whereDate("due_date", "<=", $request->due_after);
+            $query->whereDate("due_date", "<=", $request->due_before);
         }
 
         // Filter by title & description
@@ -86,7 +89,7 @@ class TaskController extends Controller
      */
     public function show(Request $request, Task $task)
     {
-        if ($task->user_id !== $request->user()->id) {
+        if ($task->user_id !== $request->user()->id && $task->assigned_to !== $request->user()->id) {
             return response()->json(['error' => 'Unauthorized.'], 403);
         }
 
@@ -98,23 +101,24 @@ class TaskController extends Controller
      */
     public function update(Request $request, Task $task) {
         // Check user validation on task
-        if ($request->user()->id !== $task->user_id) {
+        if ($request->user()->id !== $task->user_id && $task->assigned_to !== $request->user()->id) {
             return response()->json(['error' => 'Unauthorized.'], 403);
         }
 
         // Validate the request
-        $request->validate([
+        $validated = $request->validate([
             'title' => 'sometimes|required|string|max:255',
             'description' => 'nullable|string',
-            'status' => 'nullable|in:pending, in-progress, completed',
+            'status' => 'nullable|in:pending,in-progress,completed',
             'due_date' => 'nullable|date',
+            'assigned_to' => 'nullable|exists:users,id',
         ]);
 
         // Update the task
-        $task->update($request->all());
+        $task->update($validated);
 
         // Return the response
-        return response()->json($task);
+        return response()->json($task->fresh());
     }
 
     /**
